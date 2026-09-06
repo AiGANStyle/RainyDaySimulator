@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rainy Day Simulator</title>
+    <style>
+        :root {
+            --glass-bg: rgba(20, 25, 35, 0.5);
+            --glass-border: rgba(255, 255, 255, 0.15);
+            --text-color: rgba(255, 255, 255, 0.9);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background-color: #0f172a;
+        }
+
+        /* 余話を埋めるぼかし背景 */
+        #bg-ambient {
+            position: absolute;
+            top: -5%; 
+            left: -5%; 
+            width: 110%; 
+            height: 110%;
+            background-size: cover;
+            background-position: center;
+            background-image: url('Gemini_Generated_Image_h8un59h8un59h8un.jpg');
+            filter: blur(35px) brightness(0.4);
+            transition: background-image 0.5s ease-in-out;
+            z-index: 0;
+        }
+
+        /* 背景画像 (containで全体を表示) */
+        #bg-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-image: url('Gemini_Generated_Image_h8un59h8un59h8un.jpg');
+            filter: drop-shadow(0 0 30px rgba(0,0,0,0.8));
+            transition: background-image 0.5s ease-in-out;
+            z-index: 1;
+        }
+
+        /* 暗め＆ぼかしのオーバーレイ */
+        #bg-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, rgba(15, 23, 42, 0.2), rgba(15, 23, 42, 0.5));
+            backdrop-filter: blur(1.5px);
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        /* 雨用キャンバス */
+        #rain-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 3;
+            pointer-events: none;
+        }
+
+        /* UI全体コンテナ */
+        #ui-container {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            transition: opacity 0.4s ease, transform 0.4s ease;
+        }
+
+        /* コントロールパネル */
+        #controls {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            color: var(--text-color);
+        }
+
+        /* Spotifyプレイヤーコンテナ */
+        #spotify-container {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            overflow: hidden;
+            width: 100%;
+            max-width: 340px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+            transition: max-height 0.3s ease, opacity 0.3s ease;
+            max-height: 160px; /* コンパクト表示用 */
+        }
+
+        #spotify-container.collapsed {
+            max-height: 0;
+            opacity: 0;
+            pointer-events: none;
+            border: none;
+        }
+
+        /* パネル非表示状態 */
+        #ui-container.hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: translateX(-50%) translateY(20px);
+        }
+
+        /* パネル表示/非表示切り替えフロートボタン */
+        #toggle-ui-btn {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            z-index: 20;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            color: white;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            transition: background 0.2s, transform 0.2s;
+        }
+
+        #toggle-ui-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: scale(1.05);
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .control-label {
+            font-size: 11px;
+            letter-spacing: 1px;
+            opacity: 0.7;
+            text-transform: uppercase;
+        }
+
+        button, .file-upload-label {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 8px 14px;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        button:hover, .file-upload-label:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-1px);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 90px;
+            background: transparent;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            margin-top: -5px;
+            box-shadow: 0 0 4px rgba(0,0,0,0.5);
+        }
+        
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+        }
+
+        svg {
+            width: 18px;
+            height: 18px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .panel-toggle-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        @media (max-width: 650px) {
+            #controls {
+                padding: 12px 16px;
+                gap: 12px;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            #spotify-container {
+                max-width: 90vw;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="bg-ambient"></div>
+    <div id="bg-image"></div>
+    <div id="bg-overlay"></div>
+    <canvas id="rain-canvas"></canvas>
+
+    <!-- UI全体のコンテナ -->
+    <div id="ui-container">
+        <!-- Spotify埋め込みプレイヤー -->
+        <div id="spotify-container">
+            <iframe style="border-radius:12px" src="https://open.spotify.com/embed/album/55VpvOM2x7JYs8jpOzu4tr?utm_source=generator&si=e294512deb59491f" width="100%" height="152" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
+        </div>
+
+        <!-- コントロールパネル -->
+        <div id="controls">
+            <div class="control-group">
+                <span class="control-label">Background</span>
+                <label class="file-upload-label">
+                    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    画像変更
+                    <input type="file" id="image-upload" accept="image/*">
+                </label>
+            </div>
+
+            <div class="control-group">
+                <span class="control-label">Rain Sound</span>
+                <button id="toggle-sound">
+                    <svg id="play-icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    <svg id="pause-icon" viewBox="0 0 24 24" style="display: none;"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                    <span id="sound-text">再生</span>
+                </button>
+            </div>
+
+            <div class="control-group">
+                <span class="control-label">Volume</span>
+                <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.5">
+            </div>
+
+            <div class="control-group">
+                <span class="control-label">Rain Base</span>
+                <input type="range" id="intensity-slider" min="50" max="1500" step="50" value="400">
+            </div>
+
+            <div class="control-group">
+                <span class="control-label">BGM Box</span>
+                <button id="toggle-spotify-btn">
+                    <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                    <span id="spotify-toggle-text">BGM隠す</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- UIのON/OFFを行うフロートボタン -->
+    <button id="toggle-ui-btn" title="パネルの表示/非表示">
+        <svg id="eye-icon" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+    </button>
+
+    <script>
+        // --- 画像のアップロードと表示処理 ---
+        const imageUpload = document.getElementById('image-upload');
+        const bgImage = document.getElementById('bg-image');
+        const bgAmbient = document.getElementById('bg-ambient');
+
+        imageUpload.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    bgImage.style.backgroundImage = `url(${e.target.result})`;
+                    bgAmbient.style.backgroundImage = `url(${e.target.result})`;
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // --- パネルおよびSpotifyプレイヤーの表示切替 ---
+        const uiContainer = document.getElementById('ui-container');
+        const toggleUiBtn = document.getElementById('toggle-ui-btn');
+        const toggleSpotifyBtn = document.getElementById('toggle-spotify-btn');
+        const spotifyContainer = document.getElementById('spotify-container');
+        const spotifyToggleText = document.getElementById('spotify-toggle-text');
+
+        let isUiVisible = true;
+        toggleUiBtn.addEventListener('click', () => {
+            isUiVisible = !isUiVisible;
+            if (isUiVisible) {
+                uiContainer.classList.remove('hidden');
+                toggleUiBtn.style.opacity = '1';
+            } else {
+                uiContainer.classList.add('hidden');
+                toggleUiBtn.style.opacity = '0.3'; // 非表示時はボタンを目立たなくする
+            }
+        });
+
+        let isSpotifyVisible = true;
+        toggleSpotifyBtn.addEventListener('click', () => {
+            isSpotifyVisible = !isSpotifyVisible;
+            if (isSpotifyVisible) {
+                spotifyContainer.classList.remove('collapsed');
+                spotifyToggleText.textContent = 'BGM隠す';
+            } else {
+                spotifyContainer.classList.add('collapsed');
+                spotifyToggleText.textContent = 'BGM表示';
+            }
+        });
+
+        // --- 雨のアニメーション処理 (Canvas) ---
+        const canvas = document.getElementById('rain-canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        let raindrops = [];
+        
+        let baseIntensity = parseInt(document.getElementById('intensity-slider').value);
+        let currentIntensity = baseIntensity;
+        let targetIntensity = baseIntensity;
+        let lightningOpacity = 0;
+
+        let audioCtx;
+        let masterGainNode;
+        let baseNoiseGain;
+        let filterNode;
+        let isPlaying = false;
+
+        function resizeCanvas() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Raindrop {
+            constructor() {
+                this.reset(true);
+            }
+
+            reset(initial = false) {
+                this.x = Math.random() * width;
+                this.y = initial ? Math.random() * height : -Math.random() * 100 - 50; 
+                this.length = Math.random() * 20 + 10;
+                this.speed = Math.random() * 12 + 15;
+                this.opacity = Math.random() * 0.3 + 0.1;
+                this.angle = Math.PI / 16;
+                this.thickness = Math.random() * 1.5 + 0.5;
+            }
+
+            update() {
+                this.x += Math.sin(this.angle) * this.speed;
+                this.y += Math.cos(this.angle) * this.speed;
+
+                if (this.y > height + 100 || this.x > width + 100) {
+                    this.reset();
+                }
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                const endX = this.x + Math.sin(this.angle) * this.length;
+                const endY = this.y + Math.cos(this.angle) * this.length;
+                ctx.lineTo(endX, endY);
+                
+                const adjustedOpacity = this.speed < 20 ? this.opacity * 0.5 : this.opacity;
+                
+                ctx.strokeStyle = `rgba(200, 220, 255, ${adjustedOpacity})`;
+                ctx.lineWidth = this.thickness;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+            }
+        }
+
+        function updateRainSystem() {
+            if (Math.random() < 0.005) { 
+                targetIntensity = baseIntensity * (Math.random() * 1.2 + 0.2);
+            }
+            
+            currentIntensity += (targetIntensity - currentIntensity) * 0.01;
+            
+            const targetCount = Math.floor(currentIntensity);
+            if (targetCount > raindrops.length) {
+                const diff = targetCount - raindrops.length;
+                for (let i = 0; i < diff; i++) {
+                    const drop = new Raindrop();
+                    drop.y = -Math.random() * height;
+                    raindrops.push(drop);
+                }
+            } else if (targetCount < raindrops.length) {
+                raindrops.splice(targetCount);
+            }
+
+            if (Math.random() < 0.0005) {
+                lightningOpacity = 1.0;
+                playThunderSound();
+            }
+            
+            if (Math.random() < 0.1 * (currentIntensity / 1000)) {
+                playDropNoise();
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+
+            updateRainSystem();
+
+            ctx.save(); 
+
+            // 新しい縦長画像(Gemini_Generated_Image_h8un59h8un59h8un.jpg)の配置計算 (contain)
+            const imgAspect = 9 / 16; // 縦長画像のアスペクト比
+            const winAspect = width / height;
+            let imgW, imgH, offsetX, offsetY;
+
+            if (winAspect > imgAspect) {
+                imgH = height;
+                imgW = height * imgAspect;
+                offsetX = (width - imgW) / 2;
+                offsetY = 0;
+            } else {
+                imgW = width;
+                imgH = width / imgAspect;
+                offsetX = 0;
+                offsetY = (height - imgH) / 2;
+            }
+
+            // 新しい画像上の窓枠・サッシ・顔の位置に合わせてクリッピングパスを設定
+            ctx.beginPath();
+            
+            // 左側の窓ガラス部分 (サッシと左下キャラクターの顔・枕元を正確に回避)
+            ctx.moveTo(offsetX + imgW * 0.170, offsetY + imgH * 0.075); // 左上
+            ctx.lineTo(offsetX + imgW * 0.605, offsetY + imgH * 0.075); // 右上
+            ctx.lineTo(offsetX + imgW * 0.605, offsetY + imgH * 0.705); // 右下
+            ctx.lineTo(offsetX + imgW * 0.380, offsetY + imgH * 0.705); // 下辺途中
+            // キャラクターの頭部（顔・髪）を大きく避けるための斜めおよび垂直の切り欠き
+            ctx.lineTo(offsetX + imgW * 0.290, offsetY + imgH * 0.580); 
+            ctx.lineTo(offsetX + imgW * 0.290, offsetY + imgH * 0.530);
+            ctx.lineTo(offsetX + imgW * 0.170, offsetY + imgH * 0.530); // 窓左端
+            ctx.closePath();
+
+            // 右側の窓ガラス部分 (中央・周囲のサッシを避けて正確に枠を指定)
+            ctx.rect(
+                offsetX + imgW * 0.655,
+                offsetY + imgH * 0.075,
+                imgW * 0.275, 
+                imgH * 0.630
+            );
+            
+            ctx.clip(); 
+
+            for (let i = 0; i < raindrops.length; i++) {
+                raindrops[i].update();
+                raindrops[i].draw();
+            }
+
+            if (lightningOpacity > 0) {
+                ctx.fillStyle = `rgba(220, 230, 255, ${lightningOpacity * 0.8})`;
+                ctx.fillRect(0, 0, width, height);
+                lightningOpacity -= 0.03;
+            }
+
+            ctx.restore(); 
+
+            updateAudioDynamic();
+
+            requestAnimationFrame(animate);
+        }
+        
+        for (let i = 0; i < baseIntensity; i++) raindrops.push(new Raindrop());
+        animate();
+
+        document.getElementById('intensity-slider').addEventListener('input', (e) => {
+            baseIntensity = parseInt(e.target.value);
+            targetIntensity = baseIntensity;
+        });
+
+        // --- 音声関連処理 (Web Audio API) ---
+        const toggleBtn = document.getElementById('toggle-sound');
+        const playIcon = document.getElementById('play-icon');
+        const pauseIcon = document.getElementById('pause-icon');
+        const soundText = document.getElementById('sound-text');
+        const volumeSlider = document.getElementById('volume-slider');
+
+        function createNoiseBuffer(context, duration = 2.0, type = 'brown') {
+            const bufferSize = context.sampleRate * duration;
+            const buffer = context.createBuffer(1, bufferSize, context.sampleRate);
+            const output = buffer.getChannelData(0);
+            let lastOut = 0;
+            for (let i = 0; i < bufferSize; i++) {
+                const white = Math.random() * 2 - 1;
+                if (type === 'brown') {
+                    output[i] = (lastOut + (0.02 * white)) / 1.02;
+                    lastOut = output[i];
+                    output[i] *= 3.5;
+                } else if (type === 'white') {
+                    output[i] = white;
+                }
+            }
+            return buffer;
+        }
+
+        function initAudio() {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+            masterGainNode = audioCtx.createGain();
+            masterGainNode.gain.value = volumeSlider.value;
+            masterGainNode.connect(audioCtx.destination);
+
+            const noiseBuffer = createNoiseBuffer(audioCtx, 3.0, 'brown');
+            const noiseSource = audioCtx.createBufferSource();
+            noiseSource.buffer = noiseBuffer;
+            noiseSource.loop = true;
+
+            filterNode = audioCtx.createBiquadFilter();
+            filterNode.type = 'lowpass';
+            filterNode.frequency.value = 800; 
+            filterNode.Q.value = 0.5;
+
+            baseNoiseGain = audioCtx.createGain();
+            baseNoiseGain.gain.value = 0.5;
+
+            noiseSource.connect(filterNode);
+            filterNode.connect(baseNoiseGain);
+            baseNoiseGain.connect(masterGainNode);
+
+            noiseSource.start();
+        }
+
+        function playDropNoise() {
+            if (!audioCtx || !isPlaying) return;
+            const time = audioCtx.currentTime;
+            
+            const buffer = createNoiseBuffer(audioCtx, 0.05, 'white');
+            const source = audioCtx.createBufferSource();
+            source.buffer = buffer;
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.value = 800 + Math.random() * 2000;
+            filter.Q.value = 1.0 + Math.random();
+
+            const dropGain = audioCtx.createGain();
+            dropGain.gain.setValueAtTime(0, time);
+            dropGain.gain.linearRampToValueAtTime(0.1 + Math.random() * 0.2, time + 0.01);
+            dropGain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+
+            source.connect(filter);
+            filter.connect(dropGain);
+            dropGain.connect(masterGainNode);
+
+            source.start(time);
+        }
+
+        function playThunderSound() {
+            if (!audioCtx || !isPlaying) return;
+            const delay = 0.2 + Math.random() * 0.6;
+            const time = audioCtx.currentTime + delay; 
+            
+            const buffer = createNoiseBuffer(audioCtx, 4.0, 'brown');
+            const source = audioCtx.createBufferSource();
+            source.buffer = buffer;
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(80, time);
+            filter.frequency.linearRampToValueAtTime(300, time + 0.5);
+            filter.frequency.exponentialRampToValueAtTime(40, time + 4.0);
+
+            const thunderGain = audioCtx.createGain();
+            thunderGain.gain.setValueAtTime(0, time);
+            thunderGain.gain.linearRampToValueAtTime(1.5, time + 0.1); 
+            thunderGain.gain.exponentialRampToValueAtTime(0.01, time + 4.0);
+
+            source.connect(filter);
+            filter.connect(thunderGain);
+            thunderGain.connect(masterGainNode);
+
+            source.start(time);
+        }
+
+        function updateAudioDynamic() {
+            if (!isPlaying || !audioCtx || !baseNoiseGain) return;
+            
+            const intensityRatio = Math.min(currentIntensity / 1000, 1.0);
+            const targetGain = 0.2 + intensityRatio * 0.6;
+            const targetFreq = 400 + intensityRatio * 800;
+            const wobble = 1.0 + 0.1 * Math.sin(Date.now() / 500);
+
+            baseNoiseGain.gain.setTargetAtTime(targetGain * wobble, audioCtx.currentTime, 0.5);
+            filterNode.frequency.setTargetAtTime(targetFreq, audioCtx.currentTime, 0.5);
+        }
+
+        toggleBtn.addEventListener('click', () => {
+            if (!audioCtx) {
+                initAudio();
+                isPlaying = true;
+            } else {
+                if (audioCtx.state === 'running') {
+                    audioCtx.suspend();
+                    isPlaying = false;
+                } else if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                    isPlaying = true;
+                }
+            }
+
+            if (isPlaying) {
+                playIcon.style.display = 'none';
+                pauseIcon.style.display = 'block';
+                soundText.textContent = '停止';
+                toggleBtn.style.background = 'rgba(255, 255, 255, 0.25)';
+            } else {
+                playIcon.style.display = 'block';
+                pauseIcon.style.display = 'none';
+                soundText.textContent = '再生';
+                toggleBtn.style.background = 'rgba(255, 255, 255, 0.1)';
+            }
+        });
+
+        volumeSlider.addEventListener('input', (e) => {
+            if (masterGainNode) {
+                masterGainNode.gain.setTargetAtTime(e.target.value, audioCtx.currentTime, 0.05);
+            }
+        });
+
+    </script>
+</body>
+</html>
