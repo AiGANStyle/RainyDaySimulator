@@ -78,10 +78,6 @@
         /* Zzz エフェクト用 */
         #zzz-container {
             position: absolute;
-            bottom: 22%;
-            left: 25%;
-            width: 80px;
-            height: 80px;
             z-index: 4;
             pointer-events: none;
         }
@@ -116,7 +112,7 @@
         /* UI全体コンテナ */
         #ui-container {
             position: absolute;
-            bottom: 30px;
+            top: 30px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 10;
@@ -148,13 +144,13 @@
         #ui-container.hidden {
             opacity: 0;
             pointer-events: none;
-            transform: translateX(-50%) translateY(20px);
+            transform: translateX(-50%) translateY(-20px);
         }
 
         /* パネル表示/非表示切り替えフロートボタン */
         #toggle-ui-btn {
             position: absolute;
-            bottom: 30px;
+            top: 30px;
             right: 30px;
             z-index: 20;
             background: var(--glass-bg);
@@ -434,6 +430,35 @@
             canvas.width = width * dpr;
             canvas.height = height * dpr;
             ctx.scale(dpr, dpr);
+
+            // Zzzコンテナの位置を画像の比率と位置に合わせて計算
+            const zzzContainer = document.getElementById('zzz-container');
+            if (zzzContainer) {
+                const imgAspect = 9 / 16;
+                const winAspect = width / height;
+                let imgW, imgH, offsetX, offsetY;
+
+                if (winAspect > imgAspect) {
+                    imgH = height;
+                    imgW = height * imgAspect;
+                    offsetX = (width - imgW) / 2;
+                    offsetY = 0;
+                } else {
+                    imgW = width;
+                    imgH = width / imgAspect;
+                    offsetX = 0;
+                    offsetY = (height - imgH) / 2;
+                }
+
+                // 頭上の位置を画像内の相対位置で指定 (X: 15%, Y: 65%)
+                const headX = offsetX + (imgW * 0.15);
+                const headY = offsetY + (imgH * 0.65);
+
+                zzzContainer.style.left = `${headX}px`;
+                zzzContainer.style.top = `${headY}px`;
+                zzzContainer.style.width = `${imgW * 0.15}px`;
+                zzzContainer.style.height = `${imgH * 0.1}px`;
+            }
         }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
