@@ -59,8 +59,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(to bottom, rgba(15, 23, 42, 0.2), rgba(15, 23, 42, 0.5));
-            backdrop-filter: blur(1.5px);
+            background: linear-gradient(to bottom, rgba(15, 23, 42, 0.1), rgba(15, 23, 42, 0.4));
             z-index: 2;
             pointer-events: none;
         }
@@ -74,6 +73,44 @@
             height: 100%;
             z-index: 3;
             pointer-events: none;
+        }
+
+        /* Zzz エフェクト用 */
+        #zzz-container {
+            position: absolute;
+            bottom: 22%;
+            left: 25%;
+            width: 80px;
+            height: 80px;
+            z-index: 4;
+            pointer-events: none;
+        }
+
+        .zzz-mark {
+            position: absolute;
+            color: rgba(255, 255, 255, 0.9);
+            font-family: 'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', sans-serif;
+            font-weight: bold;
+            opacity: 0;
+            text-shadow: 0 0 5px rgba(0,0,0,0.5), 0 0 10px rgba(0,0,0,0.3);
+        }
+
+        @keyframes floatZzz {
+            0% {
+                opacity: 0;
+                transform: translate(0, 0) scale(0.5);
+            }
+            20% {
+                opacity: 1;
+                transform: translate(5px, -15px) scale(0.8);
+            }
+            80% {
+                opacity: 1;
+            }
+            100% {
+                opacity: 0;
+                transform: translate(15px, -60px) scale(1.2);
+            }
         }
 
         /* UI全体コンテナ */
@@ -234,6 +271,9 @@
     <div id="bg-image"></div>
     <div id="bg-overlay"></div>
     <canvas id="rain-canvas"></canvas>
+    
+    <!-- Zzzエフェクト用コンテナ -->
+    <div id="zzz-container"></div>
 
     <!-- UI全体のコンテナ -->
     <div id="ui-container">
@@ -340,6 +380,36 @@
             }
         });
 
+        // --- Zzz エフェクト処理 ---
+        const zzzContainer = document.getElementById('zzz-container');
+        function spawnZzz() {
+            if (!zzzContainer) return;
+            const zzz = document.createElement('div');
+            zzz.textContent = Math.random() > 0.8 ? 'Z' : 'z';
+            zzz.className = 'zzz-mark';
+            
+            const size = Math.random() * 10 + 16;
+            zzz.style.fontSize = `${size}px`;
+            
+            const leftOffset = Math.random() * 40;
+            zzz.style.left = `${leftOffset}px`;
+            zzz.style.bottom = '0px';
+            
+            const duration = Math.random() * 2.5 + 3.5;
+            zzz.style.animation = `floatZzz ${duration}s ease-in-out forwards`;
+            
+            zzzContainer.appendChild(zzz);
+            
+            setTimeout(() => {
+                if (zzz.parentNode) {
+                    zzz.parentNode.removeChild(zzz);
+                }
+            }, duration * 1000);
+        }
+
+        setInterval(spawnZzz, 2500);
+        setTimeout(spawnZzz, 1000);
+
         // --- 雨のアニメーション処理 (Canvas) ---
         const canvas = document.getElementById('rain-canvas');
         const ctx = canvas.getContext('2d');
@@ -358,8 +428,12 @@
         let isPlaying = false;
 
         function resizeCanvas() {
-            width = canvas.width = window.innerWidth;
-            height = canvas.height = window.innerHeight;
+            width = window.innerWidth;
+            height = window.innerHeight;
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            ctx.scale(dpr, dpr);
         }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
