@@ -450,9 +450,9 @@
                     offsetY = (height - imgH) / 2;
                 }
 
-                // 頭上の位置を画像内の相対位置で指定 (X: 15%, Y: 65%)
-                const headX = offsetX + (imgW * 0.15);
-                const headY = offsetY + (imgH * 0.65);
+                // 頭上の位置を画像内の相対位置で指定 (顔より少し上にするため X: 18%, Y: 55%)
+                const headX = offsetX + (imgW * 0.18);
+                const headY = offsetY + (imgH * 0.55);
 
                 zzzContainer.style.left = `${headX}px`;
                 zzzContainer.style.top = `${headY}px`;
